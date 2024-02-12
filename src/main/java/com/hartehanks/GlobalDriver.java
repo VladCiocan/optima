@@ -66,6 +66,20 @@ public class GlobalDriver implements GlobalCallback {
 
     protected SuperBufferedOutputStream sbos = null;
     private String[] outFileName;
+    //new values
+    private String inputServerAddres;
+    private String inputServerUser;
+    private String inputServerPassword;
+    private String inputServerTable;
+    private String inputServerType;
+    private String outputServerAddres;
+    private String outputServerUser;
+    private String outputServerPassword;
+    private String outputServerTable;
+    private String outputServerType;
+
+
+    //end new values
     private Ddl outDdl = null;
     private DdlField[] parsoutDdl = null;
     private Hashtable truncHash = new Hashtable();
@@ -212,7 +226,7 @@ public class GlobalDriver implements GlobalCallback {
             ParmfileHandler pfh = new ParmfileHandler(parmFileName);
 
             if (initialise(pfh)) {
-                processInputData();
+                processInputData2();
             }
         }
     }
@@ -230,6 +244,7 @@ public class GlobalDriver implements GlobalCallback {
 // if all is suvvessful then the final job is to invoke the 'startDaemons'
 // method to commence processing.
 //
+    //
     private boolean initialise(ParmfileHandler pfh) {
         try {
 //
@@ -242,6 +257,17 @@ public class GlobalDriver implements GlobalCallback {
 //
 // Open input
 //
+
+            inputServerAddres = pfh.locateArgumentFor("INPUT_SERVER_ADDRESS", 1)[0];
+             inputServerUser = pfh.locateArgumentFor("INPUT_SERVER_USER", 1)[0];
+             inputServerPassword = pfh.locateArgumentFor("INPUT_SERVER_PASSWORD", 1)[0];
+             inputServerTable = pfh.locateArgumentFor("INPUT_SERVER_TABLE", 1)[0];
+             inputServerType = pfh.locateArgumentFor("INPUT_SERVER_TYPE", 1)[0];
+             outputServerAddres = pfh.locateArgumentFor("OUTPUT_SERVER_ADDRESS", 1)[0];
+             outputServerUser = pfh.locateArgumentFor("OUTPUT_SERVER_USER", 1)[0];
+             outputServerPassword = pfh.locateArgumentFor("OUTPUT_SERVER_PASSWORD", 1)[0];
+             outputServerTable = pfh.locateArgumentFor("OUTPUT_SERVER_TABLE", 1)[0];
+             outputServerType = pfh.locateArgumentFor("OUTPUT_SERVER_TYPE", 1)[0];
             String[] inFileName = pfh.locateArgumentFor("INP_DDNAME", 1);
             sbis = new SuperBufferedInputStream(inFileName[0]);
             String inDdlName[] = pfh.locateArgumentFor("DDL_INP_FNAME", 1);
@@ -354,7 +380,7 @@ public class GlobalDriver implements GlobalCallback {
             }
             ;
 
-            setupGlobalHosts(pfh);
+            //setupGlobalHosts(pfh);
             setupCountryOptions(pfh);
             System.err.println("GloParse: Operating maximum of " +
                     primaryChildRange + " threads across " +
@@ -1171,9 +1197,10 @@ public class GlobalDriver implements GlobalCallback {
             if (globalChildren[i] == null) {
                 globalChildBusy[i] = false;
                 globalChildrenRunning[i] = null;
+                DBConnectionFactory dbConnectionFactory=new DBConnectionFactory(inputServerAddres, inputServerUser, inputServerPassword, inputServerTable, inputServerType,outputServerAddres, outputServerUser, outputServerPassword, outputServerTable, outputServerType);
                 globalChildren[i] = new GlobalChild(this, i, globalHosts,
                         hostId, inAddressData, maxInAddressCount,
-                        debug, doSmart, countryOptions);
+                        debug, doSmart, countryOptions,dbConnectionFactory);
                 childHost[i] = -1;
                 globalChildren[i].setPriority(Thread.MIN_PRIORITY);
                 globalChildren[i].start();
@@ -1286,6 +1313,16 @@ public class GlobalDriver implements GlobalCallback {
         eof = true;
         minNotifyInterval = 1;
     }
+    private void processInputData2() {
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+        while (!eof && (maxin == 0 || numRecordsIn < maxin)) {
+            queueRecord();
+        }
+        System.err.println("GloParse: Read " + numRecordsIn +
+                " input records");
+        eof = true;
+        minNotifyInterval = 1;
+    }
 
 //
 // This callback contained class is triggered automatically by the GlobalDriver
@@ -1294,7 +1331,36 @@ public class GlobalDriver implements GlobalCallback {
 // having issues with a record are specially marked so that the operator/user
 // can identify thread bad behaviour.
 //
+ private boolean queueRecord2(){
+     byte[] rec = new byte[inputRecordLength];
 
+     if (sbis.readBytes(rec, false) != null) {
+         numRecordsIn++;
+         sbin.setLength(0);
+         int numFldsIn = 0;
+         String line;
+         String tableKey = " ";
+         String fullName = "";
+         for (int i = maxInAddressCount - 1; i >= 0; i--) {
+             line = new String(rec,
+                     inAddressData[i][0],
+                     inAddressData[i][1]).trim();
+             if (inAddressData[i][2] != OFT.FullName) {
+                 sbin.append(line.toUpperCase());
+                 if (numFldsIn < 2 && line.length() > 0) {
+                     numFldsIn++;
+                     tableKey = sbin.toString();
+                 }
+                 sbin.append("|");
+             } else {
+                 fullName = trimAdl(line.replace('~', '-'));
+             }
+         }
+         GlobalRecord globalRecord = new GlobalRecord(rec, numRecordsIn,
+                 fullName);
+     }
+     return false;
+ }
     private boolean queueRecord() {
         byte[] rec = new byte[inputRecordLength];
 

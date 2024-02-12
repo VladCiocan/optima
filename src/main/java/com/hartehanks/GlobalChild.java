@@ -2,6 +2,9 @@ package com.hartehanks;
 
 import com.hartehanks.optima.api.*;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.*;
 import java.io.*;
 import java.awt.event.*;
@@ -22,6 +25,8 @@ import com.hartehanks.dev.app.*;
 // instance of an GlobalChild.
 //
 public class GlobalChild extends Thread {
+    private DBConnectionFactory dbConnectionFactory;
+    private String outputTableName;
     private GlobalDriver parent = null;
     private int myId = -1;
     private int myHostId = -1;
@@ -189,7 +194,7 @@ public class GlobalChild extends Thread {
                        GlobalHost[] globalHosts, int startHostId,
                        int[][] inAddressData, int maxInAddressCount,
                        boolean debug, boolean doSmart,
-                       Hashtable countryOptions) {
+                       Hashtable countryOptions,DBConnectionFactory con) {
         this.parent = parent;
         this.myId = myId;
         this.globalHosts = globalHosts;
@@ -200,6 +205,8 @@ public class GlobalChild extends Thread {
         this.acronyms = acronyms;
         this.doSmart = doSmart;
         this.countryOptions = countryOptions;
+        this.dbConnectionFactory=con;
+        this.outputTableName=con.getOutputServerTable();
         changeInstanceCount(1);
         //formatName = FormatName.getInstance(parent.getLogWriter(), true,
         //lastFirstList);
@@ -489,7 +496,7 @@ public class GlobalChild extends Thread {
         return busyConnects;
     }
 
-    public void run() {
+    public void run2() {
         if (myId != 0) {
             int waitTime = updateSleepTime(1);
             for (int i = 0; i < waitTime && GlobalDriver.stopping == false;
@@ -950,6 +957,73 @@ public class GlobalChild extends Thread {
         parent.childFinished(this, myId);
     }
 
+    public void run() {
+        try {
+            Connection outputServerConnection = dbConnectionFactory.createOutputDBConnection();
+            outputServerConnection.setAutoCommit(false); // assuming outputServerConnection is your DB connection
+
+            PreparedStatement pstmt = outputServerConnection.prepareStatement("INSERT INTO "+outputTableName+" VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? )");
+
+            do {
+                if (hasHung) {
+                    conTimer.stopTimer();
+                    closeServerConnection(10);
+                    pstmt.close();
+                    return;
+                }
+                try {
+                    for (COptimaContact contact : globalContacts) {
+                        for(int i = 0;i<contact.getArrFieldValues().length;i++){
+                            pstmt.setString(i+1, contact.getArrFieldValues()[i]);
+                        }
+                        pstmt.addBatch();
+                    }
+                    pstmt.addBatch();
+                pstmt.executeBatch();
+                outputServerConnection.setAutoCommit(true);
+                } catch (Exception e) {
+                    System.out.println("Error: " + e.getMessage());
+                }
+                while(true){
+                    PreparedStatement readStmt = outputServerConnection.prepareStatement("SELECT count(*) FROM "+ outputTableName + " WHERE percent < 100");
+                    ResultSet resultSet = readStmt.executeQuery();
+                    if (resultSet.next()) {
+                        int count = resultSet.getInt(1);
+                        if(count == 0){
+                            break; // exit loop when count is 0
+                        }
+                    }
+                    System.out.println("Remote data is not done, trying again in 1 minute");
+                    Thread.sleep(60000);  // Sleep for 5 seconds
+                }
+                PreparedStatement readStmt = outputServerConnection.prepareStatement("SELECT * FROM "+outputTableName+" WHERE percent = 100");
+
+                globalContacts = new COptimaContact[0];
+
+                ResultSet rs = readStmt.executeQuery();
+                while (rs.next()) {
+                    COptimaContact contact = new COptimaContact();
+                    for(int i = 0;i<contact.getArrFieldValues().length;i++){
+                        contact.setField(i, rs.getString(i+1));
+                    }
+
+                    globalContacts = Arrays.copyOf(globalContacts, globalContacts.length + 1);
+                    globalContacts[globalContacts.length - 1] = contact;
+                }
+
+                rs.close();
+                readStmt.close();
+
+            } while (redo == true);
+
+            pstmt.close();
+
+            outputServerConnection.setAutoCommit(true);
+
+        } catch (Exception e) {
+           System.out.println("Error: " + e.getMessage());
+        }
+    }
     private String fixAcronyms(String toFix, String iso3) {
         int fixLen = toFix.length();
         if (fixLen > 0 && " JP2 JP3 ".indexOf(iso3) > 0) {

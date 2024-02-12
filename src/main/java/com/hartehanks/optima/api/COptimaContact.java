@@ -4,6 +4,10 @@ package com.hartehanks.optima.api;
 import java.io.IOException;
 
 public class COptimaContact {
+    public String[] getArrFieldValues() {
+        return arrFieldValues;
+    }
+
     private String[] arrFieldValues = new String[66];
 
     public COptimaContact() {
