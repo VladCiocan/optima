@@ -960,36 +960,50 @@ public class GlobalChild extends Thread {
     public void run() {
         try {
             Connection outputServerConnection = dbConnectionFactory.createOutputDBConnection();
-            outputServerConnection.setAutoCommit(false); // assuming outputServerConnection is your DB connection
+            outputServerConnection.setAutoCommit(true); // assuming outputServerConnection is your DB connection
 
             PreparedStatement pstmt = outputServerConnection.prepareStatement("INSERT INTO "+outputTableName+" VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? )");
 
             do {
                 if (hasHung) {
+                    System.out.println("Thread " + myId + ": Hung");
                     conTimer.stopTimer();
                     closeServerConnection(10);
+                    System.out.println("Thread " + myId + ": Connection closed");
                     pstmt.close();
                     return;
                 }
                 try {
-                    for (COptimaContact contact : globalContacts) {
-                        for(int i = 0;i<contact.getArrFieldValues().length;i++){
-                            pstmt.setString(i+1, contact.getArrFieldValues()[i]);
+                    if(globalContacts != null && globalContacts.length > 0){
+                        for (COptimaContact contact : globalContacts) {
+                            System.out.print("Inserting record into output table with values : ");
+                            for(int i = 0;i<contact.getArrFieldValues().length;i++){
+                                System.out.print(contact.getArrFieldValues()[i]+",");
+                                pstmt.setString(i+1, contact.getArrFieldValues()[i]);
+                            }
+                            System.out.println();
+                            pstmt.addBatch();
                         }
                         pstmt.addBatch();
+                        pstmt.executeBatch();
+                        System.out.println("Batch executed");
+                        outputServerConnection.setAutoCommit(true);
+                        System.out.println("Auto commit set to true");
                     }
-                    pstmt.addBatch();
-                pstmt.executeBatch();
-                outputServerConnection.setAutoCommit(true);
                 } catch (Exception e) {
+                    e.printStackTrace();
                     System.out.println("Error: " + e.getMessage());
                 }
+                int found= 0;
                 while(true){
                     PreparedStatement readStmt = outputServerConnection.prepareStatement("SELECT count(*) FROM "+ outputTableName + " WHERE percent < 100");
                     ResultSet resultSet = readStmt.executeQuery();
                     if (resultSet.next()) {
                         int count = resultSet.getInt(1);
-                        if(count == 0){
+                        if(count>0){
+                            found += 1;
+                        }
+                        if(count == 0 && found>0){
                             break; // exit loop when count is 0
                         }
                     }
@@ -999,15 +1013,18 @@ public class GlobalChild extends Thread {
                 PreparedStatement readStmt = outputServerConnection.prepareStatement("SELECT * FROM "+outputTableName+" WHERE percent = 100");
 
                 globalContacts = new COptimaContact[0];
-
+                System.out.println("Reading from output table");
                 ResultSet rs = readStmt.executeQuery();
                 while (rs.next()) {
                     COptimaContact contact = new COptimaContact();
                     for(int i = 0;i<contact.getArrFieldValues().length;i++){
                         contact.setField(i, rs.getString(i+1));
                     }
-
-                    globalContacts = Arrays.copyOf(globalContacts, globalContacts.length + 1);
+                    System.out.println("Adding record to globalContacts");
+                    System.out.println(contact.getArrFieldValues().toString());
+                    COptimaContact[] newGlobalContacts = new COptimaContact[globalContacts.length + 1];
+                    System.arraycopy(globalContacts, 0, newGlobalContacts, 0, globalContacts.length);
+                    globalContacts = newGlobalContacts;
                     globalContacts[globalContacts.length - 1] = contact;
                 }
 
@@ -1021,6 +1038,7 @@ public class GlobalChild extends Thread {
             outputServerConnection.setAutoCommit(true);
 
         } catch (Exception e) {
+            e.printStackTrace();
            System.out.println("Error: " + e.getMessage());
         }
     }

@@ -1,8 +1,14 @@
 package com.hartehanks;
 
-import com.hartehanks.optima.api.COptimaContact;
-import com.hartehanks.optima.api.OFT;
 
+
+
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.UnsupportedEncodingException;
+import java.net.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.*;
 import java.util.Vector;
 
@@ -130,26 +136,127 @@ public class DBConnectionFactory {
     }
 
     public Connection createInputDBConnection() {
+
+        Path path = null;
+        String decodedPath="";
+        try {
+            URI uri = DBConnectionFactory.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            path = Paths.get(uri);
+            Path directory = path.getParent();
+            decodedPath = URLDecoder.decode(directory.toAbsolutePath().toString(), "UTF-8");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        //String s =Paths.get(decodedPath).toString();
+        File jarDir = new File(decodedPath);
         Connection con = null;
         try {
-            con = DriverManager.getConnection("jdbc:" + inputServerType + "://" + inputServerAddress + "/" + inputServerTable, inputServerUser, inputServerPassword);
-            inputStmt = con.prepareStatement("SELECT * FROM " + inputServerTable + " WHERE id = ?");
+            if (jarDir != null && jarDir.isDirectory()) {
+                File[] jars = jarDir.listFiles(new FilenameFilter() {
+                    public boolean accept(File dir, String name) {
+                        return name.endsWith(".jar") && !name.contains("optima");
+                    }
+                });
+                URL[] urls = new URL[jars.length];
+                for (int i = 0; i < jars.length; i++) {
+                    urls[i] = jars[i].toURI().toURL();
+                }
+
+                // Create a new URLClassLoader with the JDBC jars
+                URLClassLoader child = new URLClassLoader(urls, this.getClass().getClassLoader());
+                Thread.currentThread().setContextClassLoader(child);
+
+                if (inputServerType.equals("oracle:thin")) {
+                    Driver driver = (Driver)Class.forName("oracle.jdbc.driver.OracleDriver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                if (inputServerType.equals("sqlserver")) {
+                    Driver driver = (Driver)Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                if (inputServerType.equals("mysql")) {
+                    Driver driver = (Driver)Class.forName("com.mysql.cj.jdbc.Driver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                if (inputServerType.equals("postgresql")) {
+                    Driver driver = (Driver)Class.forName("org.postgresql.Driver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                con = DriverManager.getConnection("jdbc:" + inputServerType + "://" + inputServerAddress , inputServerUser, inputServerPassword);
+                inputStmt = con.prepareStatement("SELECT * FROM " + inputServerTable + " WHERE id = ?");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return con;
     }
 
-    public Connection createOutputDBConnection()  {
-        Connection con=null;
+    public Connection createOutputDBConnection() {
+
+        Path path = null;
+        String decodedPath="";
         try {
-            con = DriverManager.getConnection("jdbc:" + outputServerType + "://" + outputServerAddress + "/" + outputServerTable, outputServerUser, outputServerPassword);
-            outputStmt = con.prepareStatement("SELECT * FROM " + outputServerTable + " WHERE id = ?");
+            URI uri = DBConnectionFactory.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            path = Paths.get(uri);
+            Path directory = path.getParent();
+            decodedPath = URLDecoder.decode(directory.toAbsolutePath().toString(), "UTF-8");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        //String s =Paths.get(decodedPath).toString();
+        File jarDir = new File(decodedPath);
+        Connection con = null;
+        try {
+            if (jarDir != null && jarDir.isDirectory()) {
+                File[] jars = jarDir.listFiles(new FilenameFilter() {
+                    public boolean accept(File dir, String name) {
+                        return name.endsWith(".jar") && !name.contains("optima");
+                    }
+                });
+                URL[] urls = new URL[jars.length];
+                for (int i = 0; i < jars.length; i++) {
+                    urls[i] = jars[i].toURI().toURL();
+                }
+
+                // Create a new URLClassLoader with the JDBC jars
+                URLClassLoader child = new URLClassLoader(urls, this.getClass().getClassLoader());
+                Thread.currentThread().setContextClassLoader(child);
+
+                if (outputServerType.equals("oracle:thin")) {
+                    Driver driver = (Driver)Class.forName("oracle.jdbc.driver.OracleDriver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                if (outputServerType.equals("sqlserver")) {
+                    Driver driver = (Driver)Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                if (outputServerType.equals("mysql")) {
+                    Driver driver = (Driver)Class.forName("com.mysql.cj.jdbc.Driver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                if (outputServerType.equals("postgresql")) {
+                    Driver driver = (Driver)Class.forName("org.postgresql.Driver", true, child).newInstance();
+                    DriverManager.registerDriver(new DriverShim(driver));
+                }
+                con = DriverManager.getConnection("jdbc:" + outputServerType + "://" + outputServerAddress , outputServerUser, outputServerPassword);
+                outputStmt = con.prepareStatement("SELECT * FROM " + outputServerTable + " WHERE id = ?");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return con;
     }
+
+    /*public Connection createOutputDBConnection()  {
+        Connection con=null;
+        try {
+            con = DriverManager.getConnection("jdbc:" + outputServerType + ":@" + outputServerAddress + "/" + outputServerTable, outputServerUser, outputServerPassword);
+            outputStmt = con.prepareStatement("SELECT * FROM " + outputServerTable + " WHERE id = ?");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return con;
+    }*/
     public ResultSet getAllInputData() throws SQLException {
         Connection conn = createInputDBConnection();
         Statement stmt = conn.createStatement();

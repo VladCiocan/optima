@@ -380,7 +380,7 @@ public class GlobalDriver implements GlobalCallback {
             }
             ;
 
-            //setupGlobalHosts(pfh);
+            setupGlobalHosts(pfh);
             setupCountryOptions(pfh);
             System.err.println("GloParse: Operating maximum of " +
                     primaryChildRange + " threads across " +
@@ -390,7 +390,7 @@ public class GlobalDriver implements GlobalCallback {
 
             setupFaultyChars();
             //initPafTable();
-            return startDaemons();
+            return true;
         } catch (IllegalArgumentException iae) {
             System.err.println("GloParse: Parameter error: " +
                     iae.getMessage());
@@ -603,7 +603,8 @@ public class GlobalDriver implements GlobalCallback {
 // Method to load the ISO file translator for ISO-2/3/N to Country name
 //
     private void initIsoTable() {
-        String isoFile = System.getProperties().getProperty("ISOTABLE");
+       Properties system=System.getProperties();
+        String isoFile = system.getProperty("ISOTABLE");
         if (isoFile == null || isoFile.trim().length() == 0) {
             System.err.println("GloParse: Unable to locate ISO " +
                     "translation table setting required by COUNTRY_NAME " +
@@ -713,7 +714,7 @@ public class GlobalDriver implements GlobalCallback {
 //
 // Primary host list - main servers
 //
-        String[] hostNameList = pfh.locateArgumentFor("SERVERHOST", 0);
+        String[] hostNameList = pfh.locateArgumentFor("OUTPUT_SERVER_ADDRESS", 0);
         if (hostNameList.length < 1) {
             System.err.println("GloParse: No Serverhost argument() " +
                     "supplied");
@@ -795,7 +796,7 @@ public class GlobalDriver implements GlobalCallback {
                 } else {
                     try {
                         hostPort = Integer.parseInt(
-                                hostNameList[i].substring(colon + 1));
+                                hostNameList[i].substring(colon + 1,colon+5));
                         hostNameList[i] = hostNameList[i].substring(0, colon);
                     } catch (NumberFormatException nfe) {
                         System.err.println("GloParse: Host port no. in " +
@@ -1164,13 +1165,13 @@ public class GlobalDriver implements GlobalCallback {
             childHost[i] = -1;
         }
 
-        if (queueRecord() == false)
-        //if (sbis.readBytes(recordBucket[0], false) == null)
-        {
-            System.err.println("GloParser: No data in input file - no " +
-                    "threads started");
-            return false;
-        }
+//        if (queueRecord() == false)
+//        //if (sbis.readBytes(recordBucket[0], false) == null)
+//        {
+//            System.err.println("GloParser: No data in input file - no " +
+//                    "threads started");
+//            return false;
+//        }
 
         globalFinishManager = new GlobalFinishManager(this, maxFields,
                 inOrgOffset, outFields, outXlate, acronyms, lastFirstList);
@@ -1269,7 +1270,7 @@ public class GlobalDriver implements GlobalCallback {
                             numZero + " hung children");
                 }
                 if (numRunning * 10 <= (hostMax * 9)) {
-                    resetHostUsage();
+                    //resetHostUsage();
                     headTimer = 10000;
                 }
                 printLog(sb.toString());
@@ -1320,6 +1321,11 @@ public class GlobalDriver implements GlobalCallback {
         }
         System.err.println("GloParse: Read " + numRecordsIn +
                 " input records");
+        try {
+            startDaemons();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         eof = true;
         minNotifyInterval = 1;
     }
