@@ -4,11 +4,11 @@ COUNTRY_NAME                  oraddrl10
 COUNTRY_OPTIONS               ROW:ML0,ZAF:PFC1,GBR:T15,USA:T30,JP2:A1,JP3:A1,AUS:L0
 FULLNAME                      oraddrl1
 APAC_NAME_MODE                CH2L=L:CHNR=R:JP2L=L:JPNR=R:JP3L=L:K02L=L:KORR=R:TW2L=L:TWNR=R:TH2L=L:THAR=R
-INP_DDNAME                    D:/GloParse.input.dat
-DDL_INP_FNAME                 D:/Repos/optima/src/main/java/com/hartehanks/parsout_cdi.ddl
+INP_DDNAME                    D:/informatica_test_1.dat
+DDL_INP_FNAME                 D:/Repos/optima/src/main/java/com/hartehanks/parsout_cdi_1.ddl
 LOG_FNAME                     D:/GloParse.input.dat.log
 OUT_DDNAME                    D:/GloParse.input.out.dat
-DDL_OUT_FNAME                 D:/Repos/optima/src/main/java/com/hartehanks/parsout_cdi.ddl
+DDL_OUT_FNAME                 D:/Repos/optima/src/main/java/com/hartehanks/parsout_cdi_1.ddl
 PRINT_NTH                     1000
 SERVERHOST                    devgdm01.lanpa.ad.harte-hanks.com:15070,6,6,6,6,6,6,6,6,6,6
 FALLBACKHOST                  prodgdm02.lanpa.ad.harte-hanks.com:15070,2,2,2,2,2,2,2,2,2,2

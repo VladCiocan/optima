@@ -4,6 +4,7 @@ import java.util.*;
 import java.io.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.List;
 import javax.swing.*;
 
 import com.hartehanks.dev.app.StringSort;
@@ -11,6 +12,8 @@ import com.hartehanks.dev.io.*;
 import com.hartehanks.dev.misc.Conversion;
 import com.hartehanks.dev.misc.SuperStringTokenizer;
 import com.hartehanks.optima.api.*;
+import com.hartehanks.optimized.RecordParser;
+import com.hartehanks.optimized.RecordSender;
 
 //
 // The GlobalDriver module is the main module of the temporary Global Driver
@@ -77,6 +80,10 @@ public class GlobalDriver implements GlobalCallback {
     private String outputServerPassword;
     private String outputServerTable;
     private String outputServerType;
+
+    private String inputContactName;
+    private String inputContactCountry;
+    private String inputContactBusiness;
 
 
     //end new values
@@ -173,12 +180,14 @@ public class GlobalDriver implements GlobalCallback {
     public HashMap pafTransTable = new HashMap();
 
     public static final int serverTimeout = 600;
+    private FormatName formatName;
     public static final int defaultSearchTimeout =
             ((serverTimeout / 8) > 75) ?
                     75 : serverTimeout / 8;
     public static char[] faultyChars = new char[65536];
     private GlobalFinishManager globalFinishManager;
     private GlobalFinisher globalFinisher;
+    private RecordParser recordParser=new RecordParser();
 
     //
 // This is the GlobalDriver class constructor which is always called when a
@@ -193,11 +202,12 @@ public class GlobalDriver implements GlobalCallback {
     public GlobalDriver(String[] args) {
         System.err.println("GloParse driver  V6Q - Copyright Harte Hanks" +
                 " 2003 - 2009");
+         formatName = FormatName.getInstance(this.getLogWriter(), true,
+                lastFirstList);
         if (args.length > 0 && args[0].equalsIgnoreCase("-f")) {
             setupFaultyChars();
-            FormatName f = FormatName.getInstance(null, false,
-                    lastFirstList);
-            f.doGui(args);
+
+            formatName.doGui(args);
         } else {
             Optarg optarg = new Optarg();
             Optarg.Option parmfile1 = optarg.addStringOption('p', "pf");
@@ -231,6 +241,14 @@ public class GlobalDriver implements GlobalCallback {
         }
     }
 
+
+
+    public void createOptimaContactFromParmFile(String parFile){
+        RecordParser rp = new RecordParser();
+
+
+
+    }
     //
 // Initialise fetched mandatory arguments from the parameter file handler -
 // like input and output file names, dictionaries. It also fetches optional
@@ -390,6 +408,11 @@ public class GlobalDriver implements GlobalCallback {
 
             setupFaultyChars();
             //initPafTable();
+            recordParser.loadDescriptor(inDdlName[0]);
+            System.err.println("Input DDL path: " + inDdlName[0]);
+            recordParser.setInputFile(inFileName[0]);
+            System.err.println("Input file path: " + inFileName[0]);
+
             return true;
         } catch (IllegalArgumentException iae) {
             System.err.println("GloParse: Parameter error: " +
@@ -490,6 +513,7 @@ public class GlobalDriver implements GlobalCallback {
         try {
             String inPersonName[] = pfh.locateArgumentFor("FULLNAME", 1);
             personNameField = inPersonName[0];
+            inputContactName = personNameField;
         } catch (IllegalArgumentException iae) {
         }
 
@@ -498,6 +522,7 @@ public class GlobalDriver implements GlobalCallback {
             String inBusinessName[] =
                     pfh.locateArgumentFor("BUSINESS_NAME", 1);
             businessNameField = inBusinessName[0];
+            inputContactBusiness = businessNameField;
         } catch (IllegalArgumentException iae) {
         }
 
@@ -505,6 +530,7 @@ public class GlobalDriver implements GlobalCallback {
         try {
             String inCountryName[] = pfh.locateArgumentFor("COUNTRY_NAME", 1);
             countryNameField = inCountryName[0];
+            inputContactCountry = countryNameField;
 //
 // If country name field defined then install ISOTABLES
 //
@@ -538,6 +564,7 @@ public class GlobalDriver implements GlobalCallback {
                     maxInAddressCount++;
                 }
             } catch (DdlException ddle) {
+                ddle.printStackTrace();
             }
         }
 //
@@ -1150,6 +1177,8 @@ public class GlobalDriver implements GlobalCallback {
 // Finally, a HeadlessTimer (doesn't require AWT Gui system to be active)
 // is started that perpetually monitors child activity.
 //
+
+
     private boolean startDaemons() throws IOException {
         inRecordCount = new int[10 + numThreads];
         ;
@@ -1316,15 +1345,32 @@ public class GlobalDriver implements GlobalCallback {
     }
     private void processInputData2() {
         Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
-        while (!eof && (maxin == 0 || numRecordsIn < maxin)) {
-            queueRecord();
-        }
-        System.err.println("GloParse: Read " + numRecordsIn +
+//        while (!eof && (maxin == 0 || numRecordsIn < maxin)) {
+//            queueRecord();
+//        }
+        System.err.println("FULLNAME " + inputContactName +
+                " | Business : "+inputContactBusiness+
+                " | Country : "+inputContactCountry);
+        Map<String,COptimaContact> contacts = recordParser.extractContacts(inputContactName,inputContactBusiness,inputContactCountry);
+        System.err.println("GloParse: Read COptimaContact " + contacts.size() +
                 " input records");
+        List<COptimaContact> list=new ArrayList<>();
+        contacts.forEach((k,v)->{
+            list.add(v);
+        });
         try {
-            startDaemons();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            RecordSender recordSender = new RecordSender();
+            DBConnectionFactory dbConnectionFactory=new DBConnectionFactory(inputServerAddres, inputServerUser, inputServerPassword, inputServerTable, inputServerType,outputServerAddres, outputServerUser, outputServerPassword, outputServerTable, outputServerType);
+            recordSender.setDbConnectionFactory(dbConnectionFactory);
+            recordSender.setOutputTableName(outputServerTable);
+            recordSender.setContacts(list);
+            recordSender.start();
+            //List<COptimaContact> results = recordSender.getResults();
+            //System.err.println("GloParse: Finished " + results.size() +
+            //        " input records");
+            //startDaemons();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         eof = true;
         minNotifyInterval = 1;
