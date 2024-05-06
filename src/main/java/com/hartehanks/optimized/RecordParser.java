@@ -2,9 +2,7 @@ package com.hartehanks.optimized;
 
 import com.hartehanks.optima.api.COptimaContact;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -12,9 +10,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.hartehanks.optima.api.COptimaContact.getIndexBasedOnFieldName;
+
 public class RecordParser {
     private String inputFile="";
     private final Map<String, FieldDescriptor> fieldDescriptors = new HashMap<>();
+    List<Map<String,String>> extractedRecordsMap = new ArrayList<>();
     private int recordLength;
     public static class FieldDescriptor {
         String fieldName;
@@ -59,7 +60,7 @@ public class RecordParser {
         Map<String,COptimaContact> contacts = new HashMap<>();
         try {
             List<byte[]> extractedRecords=extractRecords(inputFile,recordLength);
-            List<Map<String,String>> extractedRecordsMap = new ArrayList<>();
+            extractedRecordsMap = new ArrayList<>();
             for (byte[] record : extractedRecords){
                 Map<String,String> recordMap = new HashMap<>();
                 for(Map.Entry<String,FieldDescriptor> entry:fieldDescriptors.entrySet()){
@@ -78,7 +79,62 @@ public class RecordParser {
 
         return contacts;
     }
+    private Map<String, String> findMatchingRecord(String recordId, List<Map<String, String>> extractedRecordsMap) {
+        return extractedRecordsMap.stream()
+                .filter(map -> recordId.equals(map.get("recordId")))
+                .findFirst()
+                .orElse(null);
+    }
+    private byte[] buildRecordBytes(COptimaContact contact, Map<String, String> recordMap) {
+        byte[] recordBytes = new byte[recordLength];
+        for (Map.Entry<String, FieldDescriptor> entry : fieldDescriptors.entrySet()) {
+            FieldDescriptor descriptor = entry.getValue();
+            String fieldValue = getFieldValue(contact, descriptor.fieldName, recordMap);
+            byte[] fieldBytes = fieldValue.getBytes(); // Assuming ASCII encoding
+            System.arraycopy(fieldBytes, 0, recordBytes, descriptor.startPos, fieldBytes.length);
+        }
+        return recordBytes;
+    }
+    public void writeContactsToFile(List<COptimaContact> contacts, String outputPath) {
+        // Check if the file exists or try to create it
+        File file = new File(outputPath);
+        try {
+            // This check will create the file if it does not exist
+            if (file.createNewFile() || file.exists()) {
+                try (FileOutputStream outputStream = new FileOutputStream(file, false)) { // false to overwrite
+                    for (COptimaContact contact : contacts) {
+                        Map<String, String> matchingRecord = findMatchingRecord(contact.getRecordID(), extractedRecordsMap);
+                        if (matchingRecord != null) {
+                            byte[] recordBytes = buildRecordBytes(contact, matchingRecord);
+                            outputStream.write(recordBytes);
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                System.out.println("Failed to create the file: " + outputPath);
+            }
+        } catch (IOException e) {
+            System.err.println("An error occurred while checking or creating the file: " + outputPath);
+            e.printStackTrace();
+        }
+    }
+    private String getFieldValue(COptimaContact contact, String fieldName, Map<String, String> recordMap) {
+        // Assuming fieldName can be directly mapped to an index
+        int index = getIndexBasedOnFieldName(fieldName); // You need to implement this based on your field naming convention
 
+        // First, try to get the value from the contact object if available
+        String value = contact.getField(index);
+
+        // If the value is not set in the contact object (assuming it would be an empty string if not set),
+        // then fall back to the value from the recordMap
+        if (value.isEmpty()) {
+            // Assuming recordMap uses the same fieldName as keys
+            return recordMap.getOrDefault(fieldName, "");
+        }
+        return value;
+    }
     public void loadDescriptor(String filePath) throws IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String line;

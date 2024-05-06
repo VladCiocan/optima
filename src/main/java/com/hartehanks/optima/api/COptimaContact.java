@@ -605,4 +605,76 @@ public class COptimaContact {
     public String getURL2() {
         return this.getField(65);
     }
+    public static int getIndexBasedOnFieldName(String fieldName) {
+        switch (fieldName) {
+            case "recordId": return 0;
+            case "title": return 1;
+            case "firstName": return 2;
+            case "middleInitials": return 3;
+            case "lastName": return 4;
+            case "fullName": return 5;
+            case "nameSuffix": return 6;
+            case "gender": return 7;
+            case "jobTitle": return 8;
+            case "salutation": return 9;
+            case "department": return 10;
+            case "company": return 11;
+            case "building": return 12;
+            case "subBuilding": return 13;
+            case "premise": return 14;
+            case "street": return 15;
+            case "subStreet": return 16;
+            case "POBox": return 17;
+            case "subCity": return 18;
+            case "city": return 19;
+            case "region": return 20;
+            case "principality": return 21;
+            case "postcode": return 22;
+            case "country": return 23;
+            case "DPS": return 24;
+            case "cedex": return 25;
+            case "MKN": return 26;
+            case "MKA": return 27;
+            case "MKC": return 28;
+            case "ACR": return 29;
+            case "WCR": return 30;
+            case "NCR": return 31;
+            case "TCR": return 32;
+            case "ECR": return 33;
+            case "percent": return 34;
+            case "duplicate": return 35;
+            case "DUPmaster": return 36;
+            case "DUPconfidence": return 37;
+            case "other1": return 38;
+            case "other2": return 39;
+            case "other3": return 40;
+            case "other4": return 41;
+            case "other5": return 42;
+            case "other6": return 43;
+            case "other7": return 44;
+            case "other8": return 45;
+            case "other9": return 46;
+            case "other10": return 47;
+            case "addressLine1": return 48;
+            case "addressLine2": return 49;
+            case "addressLine3": return 50;
+            case "addressLine4": return 51;
+            case "addressLine5": return 52;
+            case "addressLine6": return 53;
+            case "addressLine7": return 54;
+            case "addressLine8": return 55;
+            case "countryISO": return 56;
+            case "mobileTelephone": return 57;
+            case "telephone1": return 58;
+            case "telephone2": return 59;
+            case "telephone3": return 60;
+            case "telephone4": return 61;
+            case "email1": return 62;
+            case "email2": return 63;
+            case "URL1": return 64;
+            case "URL2": return 65;
+            default: return -1; // Indicator of unknown field
+        }
+    }
+
 }

@@ -12,6 +12,7 @@ import com.hartehanks.dev.io.*;
 import com.hartehanks.dev.misc.Conversion;
 import com.hartehanks.dev.misc.SuperStringTokenizer;
 import com.hartehanks.optima.api.*;
+import com.hartehanks.optimized.ProcessManager;
 import com.hartehanks.optimized.RecordParser;
 import com.hartehanks.optimized.RecordSender;
 
@@ -187,7 +188,17 @@ public class GlobalDriver implements GlobalCallback {
     public static char[] faultyChars = new char[65536];
     private GlobalFinishManager globalFinishManager;
     private GlobalFinisher globalFinisher;
-    private RecordParser recordParser=new RecordParser();
+    private RecordParser recordParser = new RecordParser();
+    private String LOGIN_URL;
+    private String START_PROCESS_URL;
+    private String CHECK_STATUS_URL;
+    private String InputTableName;
+    private String TargetKeyFileName;
+    private String ConnectionName;
+    private String SourceDB;
+    private String WhereClause;
+    private String username;
+    private String password;
 
     //
 // This is the GlobalDriver class constructor which is always called when a
@@ -202,7 +213,7 @@ public class GlobalDriver implements GlobalCallback {
     public GlobalDriver(String[] args) {
         System.err.println("GloParse driver  V6Q - Copyright Harte Hanks" +
                 " 2003 - 2009");
-         formatName = FormatName.getInstance(this.getLogWriter(), true,
+        formatName = FormatName.getInstance(this.getLogWriter(), true,
                 lastFirstList);
         if (args.length > 0 && args[0].equalsIgnoreCase("-f")) {
             setupFaultyChars();
@@ -241,14 +252,6 @@ public class GlobalDriver implements GlobalCallback {
         }
     }
 
-
-
-    public void createOptimaContactFromParmFile(String parFile){
-        RecordParser rp = new RecordParser();
-
-
-
-    }
     //
 // Initialise fetched mandatory arguments from the parameter file handler -
 // like input and output file names, dictionaries. It also fetches optional
@@ -265,6 +268,18 @@ public class GlobalDriver implements GlobalCallback {
     //
     private boolean initialise(ParmfileHandler pfh) {
         try {
+            LOGIN_URL = pfh.locateArgumentFor("LOGIN_URL", 1)[0];
+            START_PROCESS_URL = pfh.locateArgumentFor("START_PROCESS_URL", 1)[0];
+            CHECK_STATUS_URL = pfh.locateArgumentFor("CHECK_STATUS_URL", 1)[0];
+            InputTableName = pfh.locateArgumentFor("InputTableName", 1)[0];
+            TargetKeyFileName = pfh.locateArgumentFor("TargetKeyFileName", 1)[0];
+            ConnectionName = pfh.locateArgumentFor("ConnectionName", 1)[0];
+            SourceDB = pfh.locateArgumentFor("SourceDB", 1)[0];
+            WhereClause = pfh.locateArgumentFor("WhereClause", 1)[0];
+            username = pfh.locateArgumentFor("username", 1)[0];
+            password = pfh.locateArgumentFor("password", 1)[0];
+
+
 //
 // Open output then input (because input blocks until prior peer opens output)
 //
@@ -272,20 +287,21 @@ public class GlobalDriver implements GlobalCallback {
             if (outFileName[0].equalsIgnoreCase("null") == false) {
                 sbos = new SuperBufferedOutputStream(outFileName[0]);
             }
+
 //
 // Open input
 //
 
             inputServerAddres = pfh.locateArgumentFor("INPUT_SERVER_ADDRESS", 1)[0];
-             inputServerUser = pfh.locateArgumentFor("INPUT_SERVER_USER", 1)[0];
-             inputServerPassword = pfh.locateArgumentFor("INPUT_SERVER_PASSWORD", 1)[0];
-             inputServerTable = pfh.locateArgumentFor("INPUT_SERVER_TABLE", 1)[0];
-             inputServerType = pfh.locateArgumentFor("INPUT_SERVER_TYPE", 1)[0];
-             outputServerAddres = pfh.locateArgumentFor("OUTPUT_SERVER_ADDRESS", 1)[0];
-             outputServerUser = pfh.locateArgumentFor("OUTPUT_SERVER_USER", 1)[0];
-             outputServerPassword = pfh.locateArgumentFor("OUTPUT_SERVER_PASSWORD", 1)[0];
-             outputServerTable = pfh.locateArgumentFor("OUTPUT_SERVER_TABLE", 1)[0];
-             outputServerType = pfh.locateArgumentFor("OUTPUT_SERVER_TYPE", 1)[0];
+            inputServerUser = pfh.locateArgumentFor("INPUT_SERVER_USER", 1)[0];
+            inputServerPassword = pfh.locateArgumentFor("INPUT_SERVER_PASSWORD", 1)[0];
+            inputServerTable = pfh.locateArgumentFor("INPUT_SERVER_TABLE", 1)[0];
+            inputServerType = pfh.locateArgumentFor("INPUT_SERVER_TYPE", 1)[0];
+            outputServerAddres = pfh.locateArgumentFor("OUTPUT_SERVER_ADDRESS", 1)[0];
+            outputServerUser = pfh.locateArgumentFor("OUTPUT_SERVER_USER", 1)[0];
+            outputServerPassword = pfh.locateArgumentFor("OUTPUT_SERVER_PASSWORD", 1)[0];
+            outputServerTable = pfh.locateArgumentFor("OUTPUT_SERVER_TABLE", 1)[0];
+            outputServerType = pfh.locateArgumentFor("OUTPUT_SERVER_TYPE", 1)[0];
             String[] inFileName = pfh.locateArgumentFor("INP_DDNAME", 1);
             sbis = new SuperBufferedInputStream(inFileName[0]);
             String inDdlName[] = pfh.locateArgumentFor("DDL_INP_FNAME", 1);
@@ -630,7 +646,7 @@ public class GlobalDriver implements GlobalCallback {
 // Method to load the ISO file translator for ISO-2/3/N to Country name
 //
     private void initIsoTable() {
-       Properties system=System.getProperties();
+        Properties system = System.getProperties();
         String isoFile = system.getProperty("ISOTABLE");
         if (isoFile == null || isoFile.trim().length() == 0) {
             System.err.println("GloParse: Unable to locate ISO " +
@@ -823,7 +839,7 @@ public class GlobalDriver implements GlobalCallback {
                 } else {
                     try {
                         hostPort = Integer.parseInt(
-                                hostNameList[i].substring(colon + 1,colon+5));
+                                hostNameList[i].substring(colon + 1, colon + 5));
                         hostNameList[i] = hostNameList[i].substring(0, colon);
                     } catch (NumberFormatException nfe) {
                         System.err.println("GloParse: Host port no. in " +
@@ -1227,10 +1243,10 @@ public class GlobalDriver implements GlobalCallback {
             if (globalChildren[i] == null) {
                 globalChildBusy[i] = false;
                 globalChildrenRunning[i] = null;
-                DBConnectionFactory dbConnectionFactory=new DBConnectionFactory(inputServerAddres, inputServerUser, inputServerPassword, inputServerTable, inputServerType,outputServerAddres, outputServerUser, outputServerPassword, outputServerTable, outputServerType);
+                DBConnectionFactory dbConnectionFactory = new DBConnectionFactory(inputServerAddres, inputServerUser, inputServerPassword, inputServerTable, inputServerType, outputServerAddres, outputServerUser, outputServerPassword, outputServerTable, outputServerType);
                 globalChildren[i] = new GlobalChild(this, i, globalHosts,
                         hostId, inAddressData, maxInAddressCount,
-                        debug, doSmart, countryOptions,dbConnectionFactory);
+                        debug, doSmart, countryOptions, dbConnectionFactory);
                 childHost[i] = -1;
                 globalChildren[i].setPriority(Thread.MIN_PRIORITY);
                 globalChildren[i].start();
@@ -1343,28 +1359,43 @@ public class GlobalDriver implements GlobalCallback {
         eof = true;
         minNotifyInterval = 1;
     }
+
     private void processInputData2() {
         Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
 //        while (!eof && (maxin == 0 || numRecordsIn < maxin)) {
 //            queueRecord();
 //        }
         System.err.println("FULLNAME " + inputContactName +
-                " | Business : "+inputContactBusiness+
-                " | Country : "+inputContactCountry);
-        Map<String,COptimaContact> contacts = recordParser.extractContacts(inputContactName,inputContactBusiness,inputContactCountry);
+                " | Business : " + inputContactBusiness +
+                " | Country : " + inputContactCountry);
+        Map<String, COptimaContact> contacts = recordParser.extractContacts(inputContactName, inputContactBusiness, inputContactCountry);
         System.err.println("GloParse: Read COptimaContact " + contacts.size() +
                 " input records");
-        List<COptimaContact> list=new ArrayList<>();
-        contacts.forEach((k,v)->{
+        List<COptimaContact> list = new ArrayList<>();
+        contacts.forEach((k, v) -> {
             list.add(v);
         });
         try {
             RecordSender recordSender = new RecordSender();
-            DBConnectionFactory dbConnectionFactory=new DBConnectionFactory(inputServerAddres, inputServerUser, inputServerPassword, inputServerTable, inputServerType,outputServerAddres, outputServerUser, outputServerPassword, outputServerTable, outputServerType);
+            recordSender.setRecordParser(recordParser);
+            recordSender.setOutputFile(outFileName[0]);
+            recordSender.setFormatName(formatName);
+            DBConnectionFactory dbConnectionFactory = new DBConnectionFactory(inputServerAddres, inputServerUser, inputServerPassword, inputServerTable, inputServerType, outputServerAddres, outputServerUser, outputServerPassword, outputServerTable, outputServerType);
             recordSender.setDbConnectionFactory(dbConnectionFactory);
             recordSender.setOutputTableName(outputServerTable);
             recordSender.setContacts(list);
+            ProcessManager processManager = new ProcessManager();
+            processManager.setConnectionName(ConnectionName);
+            processManager.setLOGIN_URL(LOGIN_URL);
+            processManager.setSTART_PROCESS_URL(START_PROCESS_URL);
+            processManager.setCHECK_STATUS_URL(CHECK_STATUS_URL);
+            processManager.setInputTableName(InputTableName);
+            processManager.setTargetKeyFileName(TargetKeyFileName);
+            processManager.setSourceDB(SourceDB);
+            processManager.setWhereClause(WhereClause);
             recordSender.start();
+
+
             //List<COptimaContact> results = recordSender.getResults();
             //System.err.println("GloParse: Finished " + results.size() +
             //        " input records");
@@ -1376,43 +1407,44 @@ public class GlobalDriver implements GlobalCallback {
         minNotifyInterval = 1;
     }
 
-//
+    //
 // This callback contained class is triggered automatically by the GlobalDriver
 // headlessTimer. it is invoked, on average every 100 seconds and reports the
 // processing record count for each of the child threads. threads that are
 // having issues with a record are specially marked so that the operator/user
 // can identify thread bad behaviour.
 //
- private boolean queueRecord2(){
-     byte[] rec = new byte[inputRecordLength];
+    private boolean queueRecord2() {
+        byte[] rec = new byte[inputRecordLength];
 
-     if (sbis.readBytes(rec, false) != null) {
-         numRecordsIn++;
-         sbin.setLength(0);
-         int numFldsIn = 0;
-         String line;
-         String tableKey = " ";
-         String fullName = "";
-         for (int i = maxInAddressCount - 1; i >= 0; i--) {
-             line = new String(rec,
-                     inAddressData[i][0],
-                     inAddressData[i][1]).trim();
-             if (inAddressData[i][2] != OFT.FullName) {
-                 sbin.append(line.toUpperCase());
-                 if (numFldsIn < 2 && line.length() > 0) {
-                     numFldsIn++;
-                     tableKey = sbin.toString();
-                 }
-                 sbin.append("|");
-             } else {
-                 fullName = trimAdl(line.replace('~', '-'));
-             }
-         }
-         GlobalRecord globalRecord = new GlobalRecord(rec, numRecordsIn,
-                 fullName);
-     }
-     return false;
- }
+        if (sbis.readBytes(rec, false) != null) {
+            numRecordsIn++;
+            sbin.setLength(0);
+            int numFldsIn = 0;
+            String line;
+            String tableKey = " ";
+            String fullName = "";
+            for (int i = maxInAddressCount - 1; i >= 0; i--) {
+                line = new String(rec,
+                        inAddressData[i][0],
+                        inAddressData[i][1]).trim();
+                if (inAddressData[i][2] != OFT.FullName) {
+                    sbin.append(line.toUpperCase());
+                    if (numFldsIn < 2 && line.length() > 0) {
+                        numFldsIn++;
+                        tableKey = sbin.toString();
+                    }
+                    sbin.append("|");
+                } else {
+                    fullName = trimAdl(line.replace('~', '-'));
+                }
+            }
+            GlobalRecord globalRecord = new GlobalRecord(rec, numRecordsIn,
+                    fullName);
+        }
+        return false;
+    }
+
     private boolean queueRecord() {
         byte[] rec = new byte[inputRecordLength];
 

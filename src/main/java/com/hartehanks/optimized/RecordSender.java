@@ -15,6 +15,11 @@ import java.util.List;
 import java.util.Vector;
 
 public class RecordSender extends Thread {
+
+    private FormatName formatName ;
+
+    private String outputFile;
+    private RecordParser recordParser;
     private DBConnectionFactory dbConnectionFactory;
     private String outputTableName;
     private GlobalDriver parent = null;
@@ -132,6 +137,31 @@ public class RecordSender extends Thread {
     public static int instanceCount = 0;
     private static int normalPostCodeWeight = -1;
     private static int normalCityWeight = -1;
+    private ProcessManager manager;
+
+    public ProcessManager getManager() {
+        return manager;
+    }
+
+    public void setManager(ProcessManager manager) {
+        this.manager = manager;
+    }
+
+    public String getOutputFile() {
+        return outputFile;
+    }
+
+    public void setOutputFile(String outputFile) {
+        this.outputFile = outputFile;
+    }
+
+    public RecordParser getRecordParser() {
+        return recordParser;
+    }
+
+    public void setRecordParser(RecordParser recordParser) {
+        this.recordParser = recordParser;
+    }
 
     public static int[] oftAddressEnums =
             {
@@ -188,6 +218,13 @@ public class RecordSender extends Thread {
         return Arrays.asList(globalContacts);
     }
 
+    public FormatName getFormatName() {
+        return formatName;
+    }
+
+    public void setFormatName(FormatName formatName) {
+        this.formatName = formatName;
+    }
 
     //
 // This is the opposite to the open server connection. It should, in theory,
@@ -319,52 +356,48 @@ public class RecordSender extends Thread {
                     System.out.println("Error: " + e.getMessage());
                 }
                 int found= 0;
-                while(true){
-                    PreparedStatement readStmt = inputServerConnection.prepareStatement("SELECT count(*) FROM "+ outputTableName + " WHERE percent < 100");
-                    ResultSet resultSet = readStmt.executeQuery();
-                    if (resultSet.next()) {
-                        int count = resultSet.getInt(1);
-                        if(contacts.isEmpty()){
-                            System.out.println("No data has been sent so no data to wait for");
-                            break;
-                        }
-                        if(count>0){
-                            found += 1;
-                        }
-                        if(count == 0 && found>0  && !contacts.isEmpty()){
-                            break; // exit loop when count is 0
-                        }
-                    }
-                    System.out.println("Remote data is not done, trying again in 1 minute");
-                    Thread.sleep(60000);  // Sleep for 5 seconds
-                }
-                PreparedStatement readStmt = inputServerConnection.prepareStatement("SELECT * FROM "+outputTableName+" WHERE percent = 100");
+                boolean done= manager.start();
+                if(done) {
 
-                globalContacts = new COptimaContact[0];
-                System.out.println("Reading from output table");
-                ResultSet rs = readStmt.executeQuery();
-                while (rs.next()) {
-                    COptimaContact contact = new COptimaContact();
-                    for(int i = 0;i<contact.getArrFieldValues().length;i++){
-                        contact.setField(i, rs.getString(i+1));
+
+                    PreparedStatement readStmt = inputServerConnection.prepareStatement("SELECT * FROM " + outputTableName + " WHERE percent = 100");
+
+                    globalContacts = new COptimaContact[0];
+                    System.out.println("Reading from output table");
+                    ResultSet rs = readStmt.executeQuery();
+                    while (rs.next()) {
+                        COptimaContact contact = new COptimaContact();
+                        for (int i = 0; i < contact.getArrFieldValues().length; i++) {
+                            contact.setField(i, rs.getString(i + 1));
+                        }
+                        System.out.println("Adding record to globalContacts");
+                        System.out.println(contact.getArrFieldValues().toString());
+                        COptimaContact[] newGlobalContacts = new COptimaContact[globalContacts.length + 1];
+                        System.arraycopy(globalContacts, 0, newGlobalContacts, 0, globalContacts.length);
+                        globalContacts = newGlobalContacts;
+                        globalContacts[globalContacts.length - 1] = contact;
                     }
-                    System.out.println("Adding record to globalContacts");
-                    System.out.println(contact.getArrFieldValues().toString());
-                    COptimaContact[] newGlobalContacts = new COptimaContact[globalContacts.length + 1];
-                    System.arraycopy(globalContacts, 0, newGlobalContacts, 0, globalContacts.length);
-                    globalContacts = newGlobalContacts;
-                    globalContacts[globalContacts.length - 1] = contact;
+                    rs.close();
+                    readStmt.close();
                 }
 
-                rs.close();
-                readStmt.close();
 
             } while (redo == true);
 
             pstmt.close();
 
             inputServerConnection.setAutoCommit(true);
+            for (int i = 0; i < globalContacts.length; i++) {
+                boolean formatted = formatName.formatName(globalContacts[i]);
+                if (!formatted) {
+                    System.out.println("Error: Name formatting failed for record: " + globalContacts[i].getRecordID());
+                }else {
+                    System.out.println("Name formatted successfully for record: " + globalContacts[i].getRecordID());
+                }
+            }
 
+
+            recordParser.writeContactsToFile(Arrays.asList(globalContacts),outputFile);
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("Error: " + e.getMessage());
